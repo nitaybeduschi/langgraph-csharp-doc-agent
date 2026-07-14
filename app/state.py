@@ -11,4 +11,9 @@ class AgentState(TypedDict, total=False):
     extracted_info: dict[str, object]
     documentation: str
     output_file: str
+    # Whether the overall workflow succeeded. Optional to preserve compatibility.
+    success: bool
+    # List of error messages collected during execution.
     errors: list[str]
+    # Non-fatal warnings that may be helpful to the user.
+    warnings: list[str]

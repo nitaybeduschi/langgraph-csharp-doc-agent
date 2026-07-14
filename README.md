@@ -53,6 +53,19 @@ tests/
 requirements.txt
 ```
 
+## Diagrama do fluxo atualizado
+
+Adicionamos validações leves e roteamento condicional ao grafo. Veja o diagrama
+detalhado em `docs/flow.md`.
+
+Resumo das melhorias:
+
+- Validação de arquivo e leitura garantida antes da análise.
+- Validação da análise para garantir informações mínimas (classe e métodos).
+- Nó final `finish_with_error` para encerrar gracefully em caso de erros.
+
+Veja `docs/flow.md` para o diagrama Mermaid e explicações.
+
 ## Como executar localmente
 
 1. Instale as dependências:
