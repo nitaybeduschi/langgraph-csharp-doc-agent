@@ -38,3 +38,9 @@ docs/
 ## Status
 
 🚧 Em desenvolvimento.
+
+## Como contribuir
+
+1. Crie uma branch para sua alteração.
+2. Faça o commit com mensagem semântica.
+3. Abra um pull request para a branch develop.
