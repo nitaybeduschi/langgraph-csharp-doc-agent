@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -14,6 +15,13 @@ from app.state import AgentState
 @pytest.fixture
 def sample_state() -> AgentState:
     return {"input_file": "examples/sample_service.cs"}
+
+
+class FakeLLM:
+    def __call__(self, messages: object) -> SimpleNamespace:
+        return SimpleNamespace(
+            content="# Documentation\n\nMocked documentation for SampleService generated without calling an external LLM."
+        )
 
 
 def test_load_source_file_reads_existing_file(sample_state: AgentState) -> None:
@@ -42,17 +50,25 @@ def test_analyze_code_sets_stub_information(sample_state: AgentState) -> None:
     }
 
 
-def test_generate_documentation_creates_markdown_content(sample_state: AgentState) -> None:
+def test_generate_documentation_creates_markdown_content(
+    monkeypatch: pytest.MonkeyPatch, sample_state: AgentState
+) -> None:
+    monkeypatch.setattr("app.nodes.get_llm", lambda: FakeLLM())
+
     state = load_source_file(sample_state)
     state = analyze_code(state)
     result = generate_documentation(state)
 
     assert result["documentation"].startswith("# Documentation")
-    assert "provided source file" in result["documentation"]
+    assert "Mocked documentation" in result["documentation"]
     assert "SampleService" in result["documentation"]
 
 
-def test_export_markdown_writes_output_file(tmp_path: Path, sample_state: AgentState) -> None:
+def test_export_markdown_writes_output_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, sample_state: AgentState
+) -> None:
+    monkeypatch.setattr("app.nodes.get_llm", lambda: FakeLLM())
+
     state = load_source_file(sample_state)
     state = analyze_code(state)
     state = generate_documentation(state)

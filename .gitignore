@@ -7,3 +7,5 @@ __pycache__/
 env/
 output/
 *.log
+# Environment variables
+.env
