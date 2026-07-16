@@ -1,10 +1,22 @@
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 from app.graph import build_graph
 from app.state import AgentState
 
 
-def test_build_graph_compiles_and_runs_with_example_file(tmp_path: Path) -> None:
+class FakeLLM:
+    def __call__(self, messages: object) -> SimpleNamespace:
+        return SimpleNamespace(
+            content="# Documentation\n\nMocked documentation for SampleService generated without calling an external LLM."
+        )
+
+
+def test_build_graph_compiles_and_runs_with_example_file(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("app.nodes.get_llm", lambda: FakeLLM())
+
     example_file = Path("examples/sample_service.cs")
     assert example_file.exists(), "Example source file should exist"
 

@@ -3,6 +3,9 @@ from __future__ import annotations
 from .state import AgentState
 from .tools import read_text_file, write_text_file
 from pathlib import Path
+from .config import get_llm
+from .prompts import build_documentation_prompt
+from typing import Any
 
 
 def load_source_file(state: AgentState) -> AgentState:
@@ -53,10 +56,56 @@ def analyze_code_full(state: AgentState) -> AgentState:
 def generate_documentation(state: AgentState) -> AgentState:
     """Placeholder documentation generation step."""
     source_code = state.get("source_code", "")
-    state["documentation"] = (
-        "# Documentation\n\n"
-        f"This document was generated from the provided source file.\n\n```csharp\n{source_code[:500]}\n```"
-    )
+    extracted = state.get("extracted_info")
+
+    system_msg, human_msg = build_documentation_prompt(extracted, source_code)
+
+    # Try to obtain a LangChain LLM/chat model
+    llm: Any = None
+    try:
+        llm = get_llm()
+    except Exception as e:
+        state.setdefault("errors", []).append(f"LLM factory failed: {e}")
+
+    markdown: str | None = None
+
+    if llm is not None:
+        try:
+            # Import message classes lazily to avoid hard dependency at import time
+            try:
+                from langchain.schema import SystemMessage, HumanMessage
+
+                messages = [SystemMessage(content=system_msg), HumanMessage(content=human_msg)]
+                response = llm(messages)
+                # Response may be an AIMessage or similar
+                markdown = getattr(response, "content", None) or str(response)
+            except Exception:
+                # Older/langchain variants may accept a list of strings or be callable differently
+                resp = llm(f"{system_msg}\n\n{human_msg}")
+                markdown = getattr(resp, "content", None) or str(resp)
+        except Exception as e:
+            state.setdefault("errors", []).append(f"LLM call failed: {e}")
+
+    if not markdown:
+        # Fallback: produce a simple markdown similar to previous behavior
+        src_preview = source_code[:500]
+        parts = [
+            "# Documentation\n\n",
+            "This document was generated from the provided source file.\n\n",
+            "```csharp\n",
+            src_preview,
+            "\n```\n",
+        ]
+
+        if extracted and isinstance(extracted, dict):
+            import json
+
+            parts.extend(["\n## Extracted Info\n```", json.dumps(extracted, indent=2, ensure_ascii=False), "\n```\n"]) 
+
+        parts.append("\n_Note: LLM unavailable or errored; this is a fallback._")
+        markdown = "".join(parts)
+
+    state["documentation"] = markdown
     return state
 
 
