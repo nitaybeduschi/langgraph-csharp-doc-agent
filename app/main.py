@@ -19,7 +19,8 @@ def main() -> None:
     }
 
     graph = build_graph()
-    result = graph.invoke(initial_state)
+    config = {"configurable": {"thread_id": "demo-session"}}
+    result = graph.invoke(initial_state, config=config)
     print(result)
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.memory import InMemorySaver
 
 from .nodes import (
     analyze_code,
@@ -46,4 +47,6 @@ def build_graph() -> StateGraph:
     workflow.add_edge("generate_documentation", "export_markdown")
     workflow.add_edge("export_markdown", END)
 
-    return workflow.compile()
+    # Use an in-memory checkpointer so the workflow can reuse state for a shared thread.
+    memory = InMemorySaver()
+    return workflow.compile(checkpointer=memory)
