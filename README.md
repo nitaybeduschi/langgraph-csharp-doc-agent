@@ -116,6 +116,28 @@ python -m app.main examples/customer-service.cs --output output/customer-service
 
 O resultado sera salvo em `output/documentation.md` por padrao, ou no caminho passado em `--output`.
 
+## Exemplo resumido de entrada e saida
+
+Os arquivos com prefixo `output_` em `examples/` representam exemplos de saida gerada pelo agente. Por exemplo:
+
+- Entrada: [examples/sample_service.cs](examples/sample_service.cs)
+- Saida exemplo: [examples/output_sample_service.md](examples/output_sample_service.md)
+
+Exemplo de entrada resumido:
+
+```csharp
+public class SampleService
+{
+    public string GetGreeting(string name) => $"Hello, {name}!";
+}
+```
+
+Exemplo de saida resumido:
+
+- Classe identificada: `SampleService`
+- Metodos publicos detectados: `GetGreeting` e `Add`
+- Documentacao gerada em Markdown com objetivo, responsabilidades e observacoes
+
 ## Como testar
 
 ```bash
