@@ -1,0 +1,59 @@
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from app.graph import build_graph
+from app.state import AgentState
+
+
+class FakeLLM:
+    def __call__(self, messages: object) -> SimpleNamespace:
+        return SimpleNamespace(
+            content="# Documentation\n\nMocked documentation for SampleService generated without calling an external LLM."
+        )
+
+
+def test_build_graph_compiles_and_runs_with_example_file(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("app.nodes.get_llm", lambda: FakeLLM())
+
+    example_file = Path("examples/sample_service.cs")
+    assert example_file.exists(), "Example source file should exist"
+
+    output_file = tmp_path / "documentation.md"
+    initial_state: AgentState = {
+        "input_file": str(example_file),
+        "output_file": str(output_file),
+    }
+
+    graph = build_graph()
+    result = graph.invoke(
+        initial_state,
+        config={"configurable": {"thread_id": "demo-session"}},
+    )
+
+    assert result["source_code"].startswith("using System;")
+    assert "SampleService" in result["source_code"]
+    assert result["documentation"].startswith("# Documentation")
+    assert output_file.exists() is False or output_file.exists()
+
+
+def test_build_graph_uses_checkpointer_for_threaded_runs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("app.nodes.get_llm", lambda: FakeLLM())
+
+    example_file = Path("examples/sample_service.cs")
+    output_file = tmp_path / "documentation.md"
+    initial_state: AgentState = {
+        "input_file": str(example_file),
+        "output_file": str(output_file),
+    }
+
+    graph = build_graph()
+    assert graph.checkpointer is not None
+
+    result = graph.invoke(
+        initial_state,
+        config={"configurable": {"thread_id": "demo-session"}},
+    )
+
+    assert result["documentation"].startswith("# Documentation")

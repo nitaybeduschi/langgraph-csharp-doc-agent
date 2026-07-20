@@ -1,0 +1,19 @@
+from __future__ import annotations
+
+from typing import TypedDict
+
+
+class AgentState(TypedDict, total=False):
+    """Shared state for the documentation agent workflow."""
+
+    input_file: str
+    source_code: str
+    extracted_info: dict[str, object]
+    documentation: str
+    output_file: str
+    # Whether the overall workflow succeeded. Optional to preserve compatibility.
+    success: bool
+    # List of error messages collected during execution.
+    errors: list[str]
+    # Non-fatal warnings that may be helpful to the user.
+    warnings: list[str]
