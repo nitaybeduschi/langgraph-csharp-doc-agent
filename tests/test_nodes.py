@@ -5,10 +5,14 @@ import pytest
 
 from app.nodes import (
     analyze_code,
+    analyze_structure,
+    audit_security_metrics,
     export_markdown,
     generate_documentation,
     load_source_file,
+    merge_analyses,
 )
+from app.schemas import CodeAnalysisResult, DocumentationOutput
 from app.state import AgentState
 
 
@@ -50,6 +54,35 @@ def test_analyze_code_sets_stub_information(sample_state: AgentState) -> None:
     }
 
 
+def test_parallel_analysis_nodes_return_validated_partial_updates(sample_state: AgentState) -> None:
+    state = load_source_file(sample_state)
+
+    structure = analyze_structure(state)
+    security = audit_security_metrics(state)
+
+    structure_result = CodeAnalysisResult(**structure["structure_analysis"])
+    security_result = CodeAnalysisResult(**security["security_metrics"])
+
+    assert structure_result.class_name == "SampleService"
+    assert structure_result.methods == ["GetGreeting", "Add"]
+    assert security_result.security_metrics["line_count"] > 0
+    assert "source_code" not in structure
+    assert "source_code" not in security
+
+
+def test_merge_analyses_creates_code_analysis_result(sample_state: AgentState) -> None:
+    state = load_source_file(sample_state)
+    state.update(analyze_structure(state))
+    state.update(audit_security_metrics(state))
+
+    result = merge_analyses(state)
+    analysis = CodeAnalysisResult(**result["extracted_info"])
+
+    assert analysis.class_name == "SampleService"
+    assert analysis.methods == ["GetGreeting", "Add"]
+    assert analysis.security_metrics["risk_count"] == 0
+
+
 def test_generate_documentation_creates_markdown_content(
     monkeypatch: pytest.MonkeyPatch, sample_state: AgentState
 ) -> None:
@@ -58,8 +91,10 @@ def test_generate_documentation_creates_markdown_content(
     state = load_source_file(sample_state)
     state = analyze_code(state)
     result = generate_documentation(state)
+    documentation_output = DocumentationOutput(**result["documentation_output"])
 
     assert result["documentation"].startswith("# Documentation")
+    assert documentation_output.markdown == result["documentation"]
     assert "Mocked documentation" in result["documentation"]
     assert "SampleService" in result["documentation"]
 

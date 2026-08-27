@@ -8,7 +8,10 @@ class AgentState(TypedDict, total=False):
 
     input_file: str
     source_code: str
+    structure_analysis: dict[str, object]
+    security_metrics: dict[str, object]
     extracted_info: dict[str, object]
+    documentation_output: dict[str, object]
     documentation: str
     output_file: str
     # Whether the overall workflow succeeded. Optional to preserve compatibility.

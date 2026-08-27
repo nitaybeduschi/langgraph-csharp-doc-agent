@@ -5,7 +5,15 @@ from .tools import read_text_file, write_text_file
 from pathlib import Path
 from .config import get_llm
 from .prompts import build_documentation_prompt
+from .schemas import CodeAnalysisResult, DocumentationOutput
 from typing import Any
+
+
+def _model_dump(model: Any) -> dict[str, Any]:
+    """Return a plain dict for Pydantic v1 or v2 models."""
+    if hasattr(model, "model_dump"):
+        return model.model_dump()
+    return model.dict()
 
 
 def load_source_file(state: AgentState) -> AgentState:
@@ -51,6 +59,88 @@ def analyze_code_full(state: AgentState) -> AgentState:
 
     state["extracted_info"] = info
     return state
+
+
+def start_parallel_analysis(state: AgentState) -> AgentState:
+    """Pass-through node used to fan out parallel analysis branches."""
+    return {}
+
+
+def analyze_structure(state: AgentState) -> AgentState:
+    """Extract structural code information in a parallel-safe state update."""
+    source = state.get("source_code", "")
+    class_name: str | None = None
+    methods: list[str] = []
+    dependencies: list[str] = []
+
+    if source:
+        import re
+
+        class_match = re.search(r"class\s+(\w+)", source)
+        class_name = class_match.group(1) if class_match else None
+        methods = re.findall(r"public\s+[\w<>\[\]]+\s+(\w+)\s*\(", source)
+        dependencies = re.findall(r"^\s*using\s+([\w.]+);", source, flags=re.MULTILINE)
+
+    summary = "Extracted structural information from source code."
+    if not class_name and not methods:
+        summary = "No class name or public methods found in source code."
+
+    result = CodeAnalysisResult(
+        status="ok" if class_name or methods else "partial",
+        summary=summary,
+        class_name=class_name,
+        methods=methods,
+        dependencies=dependencies,
+    )
+    return {"structure_analysis": _model_dump(result)}
+
+
+def audit_security_metrics(state: AgentState) -> AgentState:
+    """Collect lightweight security and maintainability metrics in parallel."""
+    source = state.get("source_code", "")
+    lines = source.splitlines()
+    lower_source = source.lower()
+    risk_patterns = {
+        "sql_execution": ["SqlCommand", "ExecuteSqlRaw", "FromSqlRaw"],
+        "process_execution": ["Process.Start"],
+        "file_deletion": ["File.Delete", "Directory.Delete"],
+        "secret_literal": ["password", "secret", "token", "apikey", "api_key"],
+    }
+
+    detected_risks: list[str] = []
+    for risk_name, patterns in risk_patterns.items():
+        if any(pattern.lower() in lower_source for pattern in patterns):
+            detected_risks.append(risk_name)
+
+    metrics = {
+        "line_count": len(lines),
+        "non_empty_line_count": sum(1 for line in lines if line.strip()),
+        "detected_risks": detected_risks,
+        "risk_count": len(detected_risks),
+    }
+
+    result = CodeAnalysisResult(
+        status="ok",
+        summary="Collected lightweight security and maintainability metrics.",
+        security_metrics=metrics,
+    )
+    return {"security_metrics": _model_dump(result)}
+
+
+def merge_analyses(state: AgentState) -> AgentState:
+    """Merge parallel analysis outputs into the canonical extracted_info key."""
+    structure = CodeAnalysisResult(**state.get("structure_analysis", {}))
+    security = CodeAnalysisResult(**state.get("security_metrics", {}))
+
+    merged = CodeAnalysisResult(
+        status="ok" if structure.class_name or structure.methods else "partial",
+        summary=structure.summary,
+        class_name=structure.class_name,
+        methods=structure.methods,
+        dependencies=structure.dependencies,
+        security_metrics=security.security_metrics,
+    )
+    return {"extracted_info": _model_dump(merged)}
 
 
 def generate_documentation(state: AgentState) -> AgentState:
@@ -105,7 +195,10 @@ def generate_documentation(state: AgentState) -> AgentState:
         parts.append("\n_Note: LLM unavailable or errored; this is a fallback._")
         markdown = "".join(parts)
 
-    state["documentation"] = markdown
+    output = DocumentationOutput(markdown=markdown)
+    dumped_output = _model_dump(output)
+    state["documentation_output"] = dumped_output
+    state["documentation"] = output.markdown
     return state
 
 
