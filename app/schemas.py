@@ -21,3 +21,16 @@ class DocumentationOutput(BaseModel):
 
     markdown: str
     format: str = Field(default="markdown")
+
+
+class ReadTextFileInput(BaseModel):
+    """Input schema for reading a UTF-8 text file."""
+
+    file_path: str
+
+
+class WriteTextFileInput(BaseModel):
+    """Input schema for writing UTF-8 text content to disk."""
+
+    file_path: str
+    content: str

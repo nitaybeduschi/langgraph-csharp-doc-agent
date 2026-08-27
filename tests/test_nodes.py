@@ -14,6 +14,7 @@ from app.nodes import (
 )
 from app.schemas import CodeAnalysisResult, DocumentationOutput
 from app.state import AgentState
+from app.tools import read_text_file_tool, write_text_file_tool
 
 
 @pytest.fixture
@@ -115,3 +116,10 @@ def test_export_markdown_writes_output_file(
     assert result["output_file"] == str(output_file)
     assert output_file.exists()
     assert "# Documentation" in output_file.read_text(encoding="utf-8")
+
+
+def test_langchain_tools_use_pydantic_schemas() -> None:
+    assert read_text_file_tool.args_schema is not None
+    assert write_text_file_tool.args_schema is not None
+    assert "file_path" in read_text_file_tool.args_schema.model_fields
+    assert {"file_path", "content"} == set(write_text_file_tool.args_schema.model_fields)

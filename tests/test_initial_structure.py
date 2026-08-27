@@ -26,10 +26,12 @@ def test_build_graph_compiles_and_runs_with_example_file(monkeypatch: pytest.Mon
         "output_file": str(output_file),
     }
 
-    graph = build_graph()
+    checkpoint_path = tmp_path / "checkpoints.db"
+    graph = build_graph(checkpoint_path=checkpoint_path)
+    config = {"configurable": {"thread_id": "demo-session"}}
     result = graph.invoke(
         initial_state,
-        config={"configurable": {"thread_id": "demo-session"}},
+        config=config,
     )
 
     assert result["source_code"].startswith("using System;")
@@ -38,7 +40,14 @@ def test_build_graph_compiles_and_runs_with_example_file(monkeypatch: pytest.Mon
     assert result["security_metrics"]["security_metrics"]["risk_count"] == 0
     assert result["extracted_info"]["class_name"] == "SampleService"
     assert result["documentation"].startswith("# Documentation")
-    assert output_file.exists() is False or output_file.exists()
+    assert output_file.exists() is False
+    assert graph.get_state(config).next == ("export_markdown",)
+    assert checkpoint_path.exists()
+
+    resumed = graph.invoke(None, config=config)
+
+    assert resumed["output_file"] == str(output_file)
+    assert output_file.exists()
 
 
 def test_build_graph_uses_checkpointer_for_threaded_runs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -51,12 +60,16 @@ def test_build_graph_uses_checkpointer_for_threaded_runs(monkeypatch: pytest.Mon
         "output_file": str(output_file),
     }
 
-    graph = build_graph()
+    checkpoint_path = tmp_path / "checkpoints.db"
+    graph = build_graph(checkpoint_path=checkpoint_path)
     assert graph.checkpointer is not None
 
+    config = {"configurable": {"thread_id": "demo-session"}}
     result = graph.invoke(
         initial_state,
-        config={"configurable": {"thread_id": "demo-session"}},
+        config=config,
     )
 
     assert result["documentation"].startswith("# Documentation")
+    assert checkpoint_path.exists()
+    assert graph.get_state(config).values["documentation"].startswith("# Documentation")
