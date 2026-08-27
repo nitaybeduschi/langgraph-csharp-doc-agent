@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import sqlite3
+from pathlib import Path
+
 from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.checkpoint.sqlite import SqliteSaver
 
 from .nodes import (
     analyze_structure,
@@ -21,7 +24,7 @@ from .routers import (
 from .state import AgentState
 
 
-def build_graph() -> StateGraph:
+def build_graph(checkpoint_path: str | Path = "checkpoints.db") -> StateGraph:
     """Build the initial workflow for the documentation agent."""
     workflow = StateGraph(AgentState)
 
@@ -58,6 +61,9 @@ def build_graph() -> StateGraph:
     workflow.add_edge("generate_documentation", "export_markdown")
     workflow.add_edge("export_markdown", END)
 
-    # Use an in-memory checkpointer so the workflow can reuse state for a shared thread.
-    memory = InMemorySaver()
-    return workflow.compile(checkpointer=memory)
+    checkpoint_connection = sqlite3.connect(checkpoint_path, check_same_thread=False)
+    sqlite_saver = SqliteSaver(checkpoint_connection)
+    return workflow.compile(
+        checkpointer=sqlite_saver,
+        interrupt_before=["export_markdown"],
+    )
