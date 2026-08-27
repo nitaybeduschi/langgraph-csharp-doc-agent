@@ -34,6 +34,9 @@ def test_build_graph_compiles_and_runs_with_example_file(monkeypatch: pytest.Mon
 
     assert result["source_code"].startswith("using System;")
     assert "SampleService" in result["source_code"]
+    assert result["structure_analysis"]["class_name"] == "SampleService"
+    assert result["security_metrics"]["security_metrics"]["risk_count"] == 0
+    assert result["extracted_info"]["class_name"] == "SampleService"
     assert result["documentation"].startswith("# Documentation")
     assert output_file.exists() is False or output_file.exists()
 
