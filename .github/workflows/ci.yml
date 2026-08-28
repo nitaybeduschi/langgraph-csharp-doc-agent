@@ -33,6 +33,11 @@ jobs:
       - name: Run quality gates
         id: quality
         shell: bash
+        env:
+          LANGCHAIN_TRACING_V2: "false"
+          LANGSMITH_TRACING: "false"
+          LANGCHAIN_CALLBACKS_BACKGROUND: "false"
+          PYTEST_ADDOPTS: "--basetemp=.tmp/pytest"
         run: |
           mkdir -p .ci-logs
           set +e
@@ -52,5 +57,9 @@ jobs:
 
       - name: Analyze failed build logs
         if: failure()
+        env:
+          LANGCHAIN_TRACING_V2: "false"
+          LANGSMITH_TRACING: "false"
+          LANGCHAIN_CALLBACKS_BACKGROUND: "false"
         run: |
           python scripts/ai_log_analyzer.py --log-dir .ci-logs --json-output .ci-logs/analysis.json
