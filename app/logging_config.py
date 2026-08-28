@@ -4,6 +4,7 @@ import logging
 import os
 import sys
 import uuid
+from collections.abc import Mapping, MutableMapping
 from contextvars import ContextVar
 from datetime import UTC, datetime
 from typing import Any
@@ -43,7 +44,7 @@ def get_trace_id() -> str:
     return _TRACE_ID.get() or set_trace_id()
 
 
-def _add_trace_id(_: Any, __: str, event_dict: dict[str, Any]) -> dict[str, Any]:
+def _add_trace_id(_: Any, __: str, event_dict: MutableMapping[str, Any]) -> Mapping[str, Any]:
     event_dict.setdefault("trace_id", get_trace_id())
     return event_dict
 
