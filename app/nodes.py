@@ -2,11 +2,16 @@ from __future__ import annotations
 
 from .state import AgentState
 from .tools import read_text_file, write_text_file
-from pathlib import Path
 from .config import get_llm
 from .prompts import build_documentation_prompt
 from .schemas import CodeAnalysisResult, DocumentationOutput
+from .security import SecurityError, sanitize_csharp_source
 from typing import Any
+
+try:
+    from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+except Exception:
+    retry = None
 
 
 def _model_dump(model: Any) -> dict[str, Any]:
@@ -24,9 +29,13 @@ def load_source_file(state: AgentState) -> AgentState:
         return state
 
     try:
-        state["source_code"] = read_text_file(input_file)
+        source_code = read_text_file(input_file, workspace_root=state.get("workspace_root"))
+        state["source_code"] = source_code
+        state["sanitized_source_code"] = sanitize_csharp_source(source_code)
     except FileNotFoundError:
         state["errors"] = [f"File not found: {input_file}"]
+    except SecurityError as e:
+        state["errors"] = [str(e)]
     return state
 
 
@@ -143,12 +152,37 @@ def merge_analyses(state: AgentState) -> AgentState:
     return {"extracted_info": _model_dump(merged)}
 
 
+def _invoke_llm_once(llm: Any, system_msg: str, human_msg: str) -> str:
+    """Invoke a LangChain-style LLM and return response content."""
+    try:
+        from langchain.schema import HumanMessage, SystemMessage
+
+        messages = [SystemMessage(content=system_msg), HumanMessage(content=human_msg)]
+        response = llm(messages)
+        return getattr(response, "content", None) or str(response)
+    except Exception:
+        resp = llm(f"{system_msg}\n\n{human_msg}")
+        return getattr(resp, "content", None) or str(resp)
+
+
+if retry is not None:
+    _invoke_llm_with_retry = retry(
+        retry=retry_if_exception_type(Exception),
+        wait=wait_exponential(multiplier=1, min=1, max=8),
+        stop=stop_after_attempt(3),
+        reraise=True,
+    )(_invoke_llm_once)
+else:
+    _invoke_llm_with_retry = _invoke_llm_once
+
+
 def generate_documentation(state: AgentState) -> AgentState:
     """Placeholder documentation generation step."""
     source_code = state.get("source_code", "")
+    sanitized_source_code = state.get("sanitized_source_code") or sanitize_csharp_source(source_code)
     extracted = state.get("extracted_info")
 
-    system_msg, human_msg = build_documentation_prompt(extracted, source_code)
+    system_msg, human_msg = build_documentation_prompt(extracted, sanitized_source_code)
 
     # Try to obtain a LangChain LLM/chat model
     llm: Any = None
@@ -161,18 +195,7 @@ def generate_documentation(state: AgentState) -> AgentState:
 
     if llm is not None:
         try:
-            # Import message classes lazily to avoid hard dependency at import time
-            try:
-                from langchain.schema import SystemMessage, HumanMessage
-
-                messages = [SystemMessage(content=system_msg), HumanMessage(content=human_msg)]
-                response = llm(messages)
-                # Response may be an AIMessage or similar
-                markdown = getattr(response, "content", None) or str(response)
-            except Exception:
-                # Older/langchain variants may accept a list of strings or be callable differently
-                resp = llm(f"{system_msg}\n\n{human_msg}")
-                markdown = getattr(resp, "content", None) or str(resp)
+            markdown = _invoke_llm_with_retry(llm, system_msg, human_msg)
         except Exception as e:
             state.setdefault("errors", []).append(f"LLM call failed: {e}")
 
@@ -207,7 +230,7 @@ def export_markdown(state: AgentState) -> AgentState:
     output_file = state.get("output_file")
     documentation = state.get("documentation", "")
     if output_file and documentation:
-        write_text_file(output_file, documentation)
+        write_text_file(output_file, documentation, workspace_root=state.get("workspace_root"))
         state["output_file"] = output_file
     return state
 

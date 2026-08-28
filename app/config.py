@@ -10,6 +10,8 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
+os.environ.setdefault("LANGSMITH_TRACING", "true")
 
 def _extract_prompt_text(prompt_input: Any) -> str:
     if isinstance(prompt_input, str):

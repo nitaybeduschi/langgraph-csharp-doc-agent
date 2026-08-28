@@ -4,7 +4,7 @@ from typing import Any
 
 from .state import AgentState
 from .tools import read_text_file
-from pathlib import Path
+from .security import SecurityError, sanitize_csharp_source, validate_workspace_path
 
 
 def should_continue_after_file_validation(state: AgentState) -> str:
@@ -20,7 +20,15 @@ def should_continue_after_file_validation(state: AgentState) -> str:
     if not input_file:
         return "invalid"
 
-    path = Path(input_file)
+    try:
+        path = validate_workspace_path(input_file, root=state.get("workspace_root"), must_exist=True)
+    except FileNotFoundError:
+        state["errors"] = [f"File not found: {input_file}"]
+        return "invalid"
+    except SecurityError as e:
+        state["errors"] = [str(e)]
+        return "invalid"
+
     if not path.exists():
         state["errors"] = [f"File not found: {input_file}"]
         return "invalid"
@@ -31,14 +39,18 @@ def should_continue_after_file_validation(state: AgentState) -> str:
     # Ensure source_code is present for downstream nodes; read it here if needed
     if not state.get("source_code"):
         try:
-            content = read_text_file(input_file)
+            content = read_text_file(input_file, workspace_root=state.get("workspace_root"))
         except FileNotFoundError:
             state["errors"] = [f"File not found: {input_file}"]
+            return "invalid"
+        except SecurityError as e:
+            state["errors"] = [str(e)]
             return "invalid"
         if not content.strip():
             state["errors"] = ["Source file is empty."]
             return "invalid"
         state["source_code"] = content
+        state["sanitized_source_code"] = sanitize_csharp_source(content)
 
     return "valid"
 

@@ -5,17 +5,18 @@ from pathlib import Path
 from langchain_core.tools import tool
 
 from .schemas import ReadTextFileInput, WriteTextFileInput
+from .security import validate_workspace_path
 
 
-def read_text_file(file_path: str | Path) -> str:
+def read_text_file(file_path: str | Path, *, workspace_root: str | Path | None = None) -> str:
     """Read the contents of a text file."""
-    path = Path(file_path)
+    path = validate_workspace_path(file_path, root=workspace_root, must_exist=True)
     return path.read_text(encoding="utf-8")
 
 
-def write_text_file(file_path: str | Path, content: str) -> str:
+def write_text_file(file_path: str | Path, content: str, *, workspace_root: str | Path | None = None) -> str:
     """Write content to a text file."""
-    path = Path(file_path)
+    path = validate_workspace_path(file_path, root=workspace_root)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
     return str(path)

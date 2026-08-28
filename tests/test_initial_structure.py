@@ -1,5 +1,6 @@
 from pathlib import Path
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 
@@ -20,7 +21,7 @@ def test_build_graph_compiles_and_runs_with_example_file(monkeypatch: pytest.Mon
     example_file = Path("examples/sample_service.cs")
     assert example_file.exists(), "Example source file should exist"
 
-    output_file = tmp_path / "documentation.md"
+    output_file = Path(".tmp") / f"{uuid4().hex}-documentation.md"
     initial_state: AgentState = {
         "input_file": str(example_file),
         "output_file": str(output_file),
