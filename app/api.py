@@ -88,7 +88,10 @@ def send_discord_notification(webhook_url: str, response: WebhookTriggerResponse
     request = Request(
         webhook_url,
         data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "langgraph-csharp-doc-agent/1.0",
+        },
         method="POST",
     )
     try:
