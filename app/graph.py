@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
+from typing import Callable
 
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.sqlite import SqliteSaver
 
+from .logging_config import configure_logging, get_logger, get_trace_id, set_trace_id
 from .nodes import (
     analyze_structure,
     audit_security_metrics,
@@ -24,19 +26,40 @@ from .routers import (
 from .state import AgentState
 
 
+def _logged_node(node_name: str, node: Callable[[AgentState], AgentState]) -> Callable[[AgentState], AgentState]:
+    """Wrap a node to emit consistent JSON lifecycle logs."""
+
+    def wrapped(state: AgentState) -> AgentState:
+        trace_id = state.get("trace_id") or get_trace_id()
+        state["trace_id"] = trace_id
+        set_trace_id(trace_id)
+        logger = get_logger().bind(node_name=node_name)
+        logger.info("node_start")
+        try:
+            result = node(state)
+            logger.info("node_end")
+            return result
+        except Exception:
+            logger.exception("node_error")
+            raise
+
+    return wrapped
+
+
 def build_graph(checkpoint_path: str | Path = "checkpoints.db") -> StateGraph:
     """Build the initial workflow for the documentation agent."""
+    configure_logging()
     workflow = StateGraph(AgentState)
 
-    workflow.add_node("load_source_file", load_source_file)
-    workflow.add_node("start_parallel_analysis", start_parallel_analysis)
-    workflow.add_node("analyze_structure", analyze_structure)
-    workflow.add_node("audit_security_metrics", audit_security_metrics)
-    workflow.add_node("merge_analyses", merge_analyses)
-    workflow.add_node("validate_analysis", validate_analysis)
-    workflow.add_node("generate_documentation", generate_documentation)
-    workflow.add_node("export_markdown", export_markdown)
-    workflow.add_node("finish_with_error", finish_with_error)
+    workflow.add_node("load_source_file", _logged_node("load_source_file", load_source_file))
+    workflow.add_node("start_parallel_analysis", _logged_node("start_parallel_analysis", start_parallel_analysis))
+    workflow.add_node("analyze_structure", _logged_node("analyze_structure", analyze_structure))
+    workflow.add_node("audit_security_metrics", _logged_node("audit_security_metrics", audit_security_metrics))
+    workflow.add_node("merge_analyses", _logged_node("merge_analyses", merge_analyses))
+    workflow.add_node("validate_analysis", _logged_node("validate_analysis", validate_analysis))
+    workflow.add_node("generate_documentation", _logged_node("generate_documentation", generate_documentation))
+    workflow.add_node("export_markdown", _logged_node("export_markdown", export_markdown))
+    workflow.add_node("finish_with_error", _logged_node("finish_with_error", finish_with_error))
 
     workflow.set_entry_point("load_source_file")
     # After loading, decide whether to continue based on lightweight router
