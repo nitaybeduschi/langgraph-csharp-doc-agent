@@ -7,8 +7,8 @@ flowchart TD
     cli["CLI\npython -m app.main"] --> state["AgentState inicial"]
     api["FastAPI\nPOST /webhooks/documentation"] --> state
     state --> trace["trace_id + workspace_root"]
-    trace --> graph["build_graph"]
-    graph --> load["load_source_file"]
+    trace --> graph_node["build_graph"]
+    graph_node --> load["load_source_file"]
 
     load --> sanitize["sanitize_csharp_source"]
     load --> file_router{"should_continue_after_file_validation"}
