@@ -39,7 +39,7 @@ jobs:
           LANGCHAIN_CALLBACKS_BACKGROUND: "false"
           PYTEST_ADDOPTS: "--basetemp=.tmp/pytest"
         run: |
-          mkdir -p .ci-logs
+          mkdir -p .ci-logs .tmp
           set +e
 
           python -m ruff check app tests scripts 2>&1 | tee .ci-logs/ruff.log
