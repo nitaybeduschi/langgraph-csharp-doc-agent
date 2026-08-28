@@ -1,166 +1,264 @@
 # LangGraph C# Documentation Agent
 
-Agente inteligente desenvolvido com **LangGraph** para automatizar a geracao de documentacao tecnica de codigo C# em Markdown.
+Agente inteligente em **LangGraph** para gerar documentacao tecnica em Markdown a partir de arquivos C#.
 
-## Objetivo
+O projeto recebe um arquivo `.cs`, valida o caminho, sanitiza o conteudo contra prompt injection, extrai informacoes estruturais, gera documentacao com LLM ou fallback local, persiste checkpoints e pode exportar o resultado depois de aprovacao humana. Tambem expoe uma API FastAPI para acionamento por webhook e notificacao visual no Discord.
 
-Este projeto foi desenvolvido como mini projeto avaliativo da disciplina de Agentes com IA.
-
-O agente recebe um arquivo `.cs`, analisa seu conteudo e gera uma documentacao tecnica inicial em Markdown. A geracao pode usar um LLM configurado em `app/config.py`; quando o LLM esta indisponivel, a aplicacao gera um fallback local simples.
-
-## Status atual
-
-- [x] Estrutura inicial do projeto implementada
-- [x] Fluxo basico do agente com LangGraph criado
-- [x] Arquivos de exemplo em `examples/` disponiveis para testes
-- [x] Validacoes leves e roteamento condicional no grafo
-- [x] Integracao com LLM para geracao de documentacao
-- [x] Suporte a Gemini via API key no `.env`
-- [x] Testes unitarios com mock do LLM
-
-## Funcionalidades implementadas
-
-- Estrutura modular do projeto
-- Estado compartilhado para o workflow
-- Grafo com nos de carregamento, analise, validacao, geracao e exportacao
-- Leitura de arquivo C# de exemplo
-- Analise basica para identificar classe e metodos publicos
-- Prompt estruturado para documentacao tecnica
-- Geracao de documentacao com LLM
-- Fallback local quando o LLM falha ou fica indisponivel
-- Testes unitarios sem chamada externa ao LLM
-
-## Tecnologias
-
-- Python 3.12+
-- LangGraph
-- LangChain
-- Gemini API
-- python-dotenv
-- Markdown
-- pytest
-
-## Estrutura do projeto
+## Arquitetura
 
 ```text
 app/
-    __init__.py
-    main.py
-    graph.py
-    state.py
-    nodes.py
-    tools.py
-    prompts.py
-    config.py
+    api.py              # FastAPI webhook trigger e notificacao Discord
+    config.py           # ambiente, provider de LLM e LangSmith
+    graph.py            # montagem do grafo LangGraph
+    logging_config.py   # logs JSON com trace_id
+    main.py             # CLI
+    nodes.py            # nos principais do workflow
+    prompts.py          # prompts de documentacao
+    qa.py               # revisao estatica opcional com IA
+    routers.py          # roteamento condicional
+    schemas.py          # modelos Pydantic
+    security.py         # sanitizacao e path traversal guard
+    state.py            # AgentState
+    tools.py            # tools LangChain
+docs/
 examples/
 output/
-docs/
-prompts/
+scripts/
 tests/
-requirements.txt
 ```
 
-## Configuracao do LLM
+Componentes principais:
 
-Crie um arquivo `.env` na raiz do projeto. Voce pode usar `.env.example` como referencia:
+- CLI: `python -m app.main examples/sample_service.cs`
+- API: `POST /webhooks/documentation`
+- Grafo: `build_graph()` em `app/graph.py`
+- LLM: `get_llm()` em `app/config.py`
+- Persistencia: `SqliteSaver`
+- Observabilidade: `structlog` JSON e LangSmith
+- Qualidade: `ruff`, `mypy`, `pytest` e analisador de logs de CI
+
+## Grafo LangGraph
+
+O grafo usa `AgentState` como estado compartilhado. Ele valida a entrada, executa analises paralelas e consolida os dados antes da geracao.
+
+Fluxo principal:
+
+1. `load_source_file`
+2. `should_continue_after_file_validation`
+3. `start_parallel_analysis`
+4. `analyze_structure` e `audit_security_metrics` em paralelo
+5. `merge_analyses`
+6. `validate_analysis`
+7. `review_code_quality`, quando `include_qa_review=True`
+8. `generate_documentation`
+9. pausa HITL antes de `export_markdown`
+10. `export_markdown`
+
+O grafo e compilado com checkpoint SQLite e `interrupt_before=["export_markdown"]`, permitindo revisar a documentacao antes da escrita final. A API webhook resume automaticamente essa pausa para completar a execucao de ponta a ponta.
+
+Veja o diagrama completo em [docs/flow.md](docs/flow.md).
+
+## Tools/MCP
+
+O projeto expoe tools LangChain em `app/tools.py`:
+
+- `read_text_file_tool`
+- `write_text_file_tool`
+
+As tools usam schemas Pydantic (`ReadTextFileInput` e `WriteTextFileInput`) e passam pela validacao de workspace em `app/security.py`.
+
+Nao ha servidor MCP dedicado neste repositorio ainda. A estrutura atual ja separa tools, schemas e seguranca, deixando o projeto pronto para publicar essas capacidades em um servidor MCP futuramente.
+
+## Memoria/RAG
+
+A memoria operacional do agente usa checkpoints SQLite via `SqliteSaver`. Cada execucao pode receber um `thread_id`, permitindo pausar e retomar o grafo.
+
+Uso na CLI:
+
+```bash
+python -m app.main examples/sample_service.cs --thread-id demo-session
+python -m app.main examples/sample_service.cs --thread-id demo-session --approve-export
+```
+
+Estado persistido:
+
+- arquivo de entrada e saida
+- codigo fonte e versao sanitizada
+- analise estrutural
+- metricas de seguranca
+- documentacao gerada
+- erros, warnings e `trace_id`
+
+RAG vetorial ainda nao esta implementado. O ponto natural para evolucao e adicionar recuperacao de contexto antes de `generate_documentation`, alimentando o prompt com exemplos, padroes internos ou documentacao corporativa.
+
+## Seguranca
+
+O modulo `app/security.py` implementa duas defesas principais:
+
+- Sanitizacao contra prompt injection no C# antes do envio ao LLM.
+- Bloqueio de path traversal com `Path.resolve()` e verificacao de que entradas/saidas permanecem dentro do workspace.
+
+O prompt tambem instrui o modelo a tratar o codigo fonte como dado nao confiavel, sem seguir instrucoes embutidas no arquivo.
+
+Exemplos de entradas neutralizadas:
+
+- delimitadores de prompt como cercas Markdown maliciosas
+- labels como `system:`, `developer:` e `user:`
+- instrucoes como `ignore previous instructions`
+
+## Observabilidade
+
+`app/logging_config.py` configura logs estruturados em JSON com:
+
+- `trace_id`
+- `node_name`
+- `timestamp`
+- `event`
+- `level`
+
+LangSmith e habilitado por padrao no runtime:
+
+```env
+LANGCHAIN_TRACING_V2=true
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=your_langsmith_api_key_here
+```
+
+No CI, o tracing e desligado nos quality gates para evitar falhas de ingestao em ambiente sem credenciais.
+
+## QA
+
+O modulo `app/qa.py` adiciona um no opcional de revisao:
+
+- `review_code_quality`
+
+Ele gera sugestoes estaticas locais e, quando ha LLM disponivel, complementa com uma revisao em Markdown. O no e habilitado pela CLI com:
+
+```bash
+python -m app.main examples/sample_service.cs --qa-review
+```
+
+Tambem pode ser habilitado via API com `include_qa_review=true`.
+
+## DevOps
+
+O pipeline em `.github/workflows/ci.yml` executa:
+
+- `python -m ruff check app tests scripts`
+- `python -m mypy app`
+- `python -m pytest -q`
+
+O job falha quando lint, tipagem ou testes falham. Os logs de cada etapa sao capturados em `.ci-logs`.
+
+Quando o build falha, o script `scripts/ai_log_analyzer.py` roda automaticamente para:
+
+- ler logs de `ruff`, `mypy` e `pytest`
+- calcular `risk_score`
+- classificar o risco como `low`, `medium` ou `high`
+- escrever um resumo no `GITHUB_STEP_SUMMARY`
+- usar LLM quando disponivel, com fallback heuristico quando nao houver credenciais
+
+## Low-Code
+
+A API FastAPI permite disparar o agente por HTTP a partir de ferramentas Low-Code, automacoes ou GitHub Actions.
+
+Suba a API localmente:
+
+```bash
+python -m uvicorn app.api:app --host 127.0.0.1 --port 8000
+```
+
+Dispare a geracao:
+
+```bash
+curl -X POST http://127.0.0.1:8000/webhooks/documentation \
+  -H "Content-Type: application/json" \
+  -d '{"input_file":"examples/sample_service.cs","output_file":"output/webhook-doc.md","notify_discord":true}'
+```
+
+Payload aceito:
+
+```json
+{
+  "input_file": "examples/sample_service.cs",
+  "output_file": "output/webhook-doc.md",
+  "thread_id": "optional-thread-id",
+  "include_qa_review": false,
+  "notify_discord": true,
+  "discord_webhook_url": "optional-request-scoped-webhook"
+}
+```
+
+Se `discord_webhook_url` nao for enviado, a API usa `DISCORD_WEBHOOK_URL` do ambiente.
+
+A resposta inclui:
+
+- `trace_id`
+- `thread_id`
+- `status`
+- `output_file`
+- `documentation_summary`
+- `metrics`
+- `notification_sent`
+- `errors`
+- `warnings`
+
+## Configuracao
+
+Crie um `.env` na raiz do projeto:
 
 ```env
 OPENAI_API_KEY=your_api_key_here
 OPENAI_MODEL=gemini-3.5-flash
 LLM_PROVIDER=gemini
+LANGCHAIN_TRACING_V2=true
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=your_langsmith_api_key_here
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/your_webhook_id/your_webhook_token
 ```
 
-Apesar do nome `OPENAI_API_KEY`, a aplicacao tambem usa essa variavel como API key do Gemini para manter compatibilidade com a configuracao anterior. Tambem e possivel usar `GOOGLE_API_KEY` ou `GEMINI_API_KEY`.
+Apesar do nome `OPENAI_API_KEY`, a aplicacao tambem aceita essa variavel como API key do Gemini por compatibilidade. Tambem e possivel usar `GOOGLE_API_KEY` ou `GEMINI_API_KEY`.
 
-A selecao do provedor fica isolada em `app/config.py`, na funcao `get_llm()`. O restante da aplicacao chama apenas essa fabrica e nao conhece diretamente o provedor usado.
+## Execucao Local
 
-Se a chamada ao Gemini falhar, por exemplo por indisponibilidade temporaria da API, o estado recebe o erro em `errors` e a documentacao gerada inclui:
-
-```text
-_Note: LLM unavailable or errored; this is a fallback._
-```
-
-## Como executar localmente
-
-1. Instale as dependencias:
+Instale as dependencias:
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-2. Configure o `.env`:
+Gere documentacao via CLI:
 
 ```bash
-cp .env.example .env
+python -m app.main examples/sample_service.cs --output output/documentation.md
 ```
 
-No Windows PowerShell, se preferir:
-
-```powershell
-Copy-Item .env.example .env
-```
-
-Depois edite `.env` e preencha a API key.
-
-3. Execute o projeto com um arquivo de exemplo:
+Execute com QA opcional:
 
 ```bash
-python -m app.main examples/sample_service.cs
+python -m app.main examples/sample_service.cs --qa-review
 ```
 
-4. Para escolher o arquivo de saida:
+## Testes
 
 ```bash
-python -m app.main examples/customer-service.cs --output output/customer-service.md
-```
-
-O resultado sera salvo em `output/documentation.md` por padrao, ou no caminho passado em `--output`.
-
-## Exemplo resumido de entrada e saida
-
-Os arquivos com prefixo `output_` em `examples/` representam exemplos de saida gerada pelo agente. Por exemplo:
-
-- Entrada: [examples/sample_service.cs](examples/sample_service.cs)
-- Saida exemplo: [examples/output_sample_service.md](examples/output_sample_service.md)
-
-Exemplo de entrada resumido:
-
-```csharp
-public class SampleService
-{
-    public string GetGreeting(string name) => $"Hello, {name}!";
-}
-```
-
-Exemplo de saida resumido:
-
-- Classe identificada: `SampleService`
-- Metodos publicos detectados: `GetGreeting` e `Add`
-- Documentacao gerada em Markdown com objetivo, responsabilidades e observacoes
-
-## Como testar
-
-```bash
+python -m ruff check app tests scripts
+python -m mypy app
 python -m pytest -q
 ```
 
-Os testes unitarios usam mock para o LLM. Eles nao devem fazer chamadas para Gemini ou qualquer outro provedor externo. A comunicacao real com LLM deve acontecer apenas ao executar a aplicacao.
+Os testes usam mocks para evitar chamadas externas ao LLM e ao Discord.
 
-## Diagrama do fluxo atualizado
+## Exemplos
 
-Adicionamos validacoes leves e roteamento condicional ao grafo. Veja o diagrama detalhado em `docs/flow.md`.
+- Entrada: [examples/sample_service.cs](examples/sample_service.cs)
+- Saida exemplo: [examples/output_sample_service.md](examples/output_sample_service.md)
+- Saida via webhook local: [output/webhook-doc.md](output/webhook-doc.md)
 
-Resumo do fluxo:
-
-- Validacao de arquivo e leitura garantida antes da analise
-- Analise basica para extrair informacoes estruturadas
-- Validacao da analise para garantir informacoes minimas
-- Geracao de documentacao via LLM ou fallback local
-- Exportacao do Markdown
-- No final `finish_with_error` para encerrar gracefully em caso de erros
-
-## Como contribuir
+## Como Contribuir
 
 1. Crie uma branch para sua alteracao.
 2. Faca commits com mensagens semanticas.
-3. Abra um pull request para a branch `develop`.
+3. Rode `ruff`, `mypy` e `pytest`.
+4. Abra um pull request para `develop`.
