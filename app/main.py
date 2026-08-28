@@ -16,6 +16,7 @@ def main() -> None:
     parser.add_argument("--output", default="output/documentation.md", help="Path for the generated Markdown file")
     parser.add_argument("--thread-id", default=None, help="Thread ID used to persist and resume graph state")
     parser.add_argument("--approve-export", action="store_true", help="Resume a paused run and write Markdown to disk")
+    parser.add_argument("--qa-review", action="store_true", help="Run the optional AI-assisted static QA review node")
     args = parser.parse_args()
 
     configure_logging()
@@ -28,12 +29,15 @@ def main() -> None:
         "workspace_root": str(PROJECT_ROOT),
     }
 
-    graph = build_graph()
+    graph = build_graph(include_qa_review=args.qa_review)
     config = {"configurable": {"thread_id": thread_id}}
     graph_input = None if args.approve_export else initial_state
     result = graph.invoke(graph_input, config=config)
     if graph.get_state(config).next:
-        print(f"Execution paused before export_markdown. Review output, then resume with --thread-id {thread_id} --approve-export.")
+        print(
+            "Execution paused before export_markdown. "
+            f"Review output, then resume with --thread-id {thread_id} --approve-export."
+        )
     print(result)
 
 

@@ -14,6 +14,7 @@ class AgentState(TypedDict, total=False):
     structure_analysis: dict[str, object]
     security_metrics: dict[str, object]
     extracted_info: dict[str, object]
+    qa_review: dict[str, object]
     documentation_output: dict[str, object]
     documentation: str
     output_file: str

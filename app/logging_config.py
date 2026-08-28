@@ -4,8 +4,9 @@ import logging
 import os
 import sys
 import uuid
+from collections.abc import Mapping, MutableMapping
 from contextvars import ContextVar
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 try:
@@ -43,7 +44,7 @@ def get_trace_id() -> str:
     return _TRACE_ID.get() or set_trace_id()
 
 
-def _add_trace_id(_: Any, __: str, event_dict: dict[str, Any]) -> dict[str, Any]:
+def _add_trace_id(_: Any, __: str, event_dict: MutableMapping[str, Any]) -> Mapping[str, Any]:
     event_dict.setdefault("trace_id", get_trace_id())
     return event_dict
 
@@ -80,7 +81,7 @@ class _FallbackJsonLogger:
     def __init__(self, **context: Any) -> None:
         self.context = context
 
-    def bind(self, **context: Any) -> "_FallbackJsonLogger":
+    def bind(self, **context: Any) -> _FallbackJsonLogger:
         return _FallbackJsonLogger(**{**self.context, **context})
 
     def info(self, event: str, **fields: Any) -> None:
@@ -96,7 +97,7 @@ class _FallbackJsonLogger:
             "event": event,
             "level": level,
             "trace_id": get_trace_id(),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             **self.context,
             **fields,
         }

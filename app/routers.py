@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
-
+from .security import SecurityError, sanitize_csharp_source, validate_workspace_path
 from .state import AgentState
 from .tools import read_text_file
-from .security import SecurityError, sanitize_csharp_source, validate_workspace_path
 
 
 def should_continue_after_file_validation(state: AgentState) -> str:

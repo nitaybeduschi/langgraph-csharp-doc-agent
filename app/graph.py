@@ -1,27 +1,29 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
+from typing import Any
 
-from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.graph import END, StateGraph
 
 from .logging_config import configure_logging, get_logger, get_trace_id, set_trace_id
 from .nodes import (
     analyze_structure,
     audit_security_metrics,
     export_markdown,
+    finish_with_error,
     generate_documentation,
     load_source_file,
     merge_analyses,
     start_parallel_analysis,
     validate_analysis,
-    finish_with_error,
 )
+from .qa import review_code_quality
 from .routers import (
-    should_continue_after_file_validation,
     should_continue_after_analysis,
+    should_continue_after_file_validation,
 )
 from .state import AgentState
 
@@ -46,10 +48,10 @@ def _logged_node(node_name: str, node: Callable[[AgentState], AgentState]) -> Ca
     return wrapped
 
 
-def build_graph(checkpoint_path: str | Path = "checkpoints.db") -> StateGraph:
+def build_graph(checkpoint_path: str | Path = "checkpoints.db", *, include_qa_review: bool = False) -> Any:
     """Build the initial workflow for the documentation agent."""
     configure_logging()
-    workflow = StateGraph(AgentState)
+    workflow: Any = StateGraph(AgentState)
 
     workflow.add_node("load_source_file", _logged_node("load_source_file", load_source_file))
     workflow.add_node("start_parallel_analysis", _logged_node("start_parallel_analysis", start_parallel_analysis))
@@ -57,6 +59,8 @@ def build_graph(checkpoint_path: str | Path = "checkpoints.db") -> StateGraph:
     workflow.add_node("audit_security_metrics", _logged_node("audit_security_metrics", audit_security_metrics))
     workflow.add_node("merge_analyses", _logged_node("merge_analyses", merge_analyses))
     workflow.add_node("validate_analysis", _logged_node("validate_analysis", validate_analysis))
+    if include_qa_review:
+        workflow.add_node("review_code_quality", _logged_node("review_code_quality", review_code_quality))
     workflow.add_node("generate_documentation", _logged_node("generate_documentation", generate_documentation))
     workflow.add_node("export_markdown", _logged_node("export_markdown", export_markdown))
     workflow.add_node("finish_with_error", _logged_node("finish_with_error", finish_with_error))
@@ -79,8 +83,13 @@ def build_graph(checkpoint_path: str | Path = "checkpoints.db") -> StateGraph:
     workflow.add_conditional_edges(
         "validate_analysis",
         should_continue_after_analysis,
-        {"success": "generate_documentation", "failure": "finish_with_error"},
+        {
+            "success": "review_code_quality" if include_qa_review else "generate_documentation",
+            "failure": "finish_with_error",
+        },
     )
+    if include_qa_review:
+        workflow.add_edge("review_code_quality", "generate_documentation")
     workflow.add_edge("generate_documentation", "export_markdown")
     workflow.add_edge("export_markdown", END)
 
