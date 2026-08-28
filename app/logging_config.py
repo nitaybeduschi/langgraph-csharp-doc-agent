@@ -5,7 +5,7 @@ import os
 import sys
 import uuid
 from contextvars import ContextVar
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 try:
@@ -80,7 +80,7 @@ class _FallbackJsonLogger:
     def __init__(self, **context: Any) -> None:
         self.context = context
 
-    def bind(self, **context: Any) -> "_FallbackJsonLogger":
+    def bind(self, **context: Any) -> _FallbackJsonLogger:
         return _FallbackJsonLogger(**{**self.context, **context})
 
     def info(self, event: str, **fields: Any) -> None:
@@ -96,7 +96,7 @@ class _FallbackJsonLogger:
             "event": event,
             "level": level,
             "trace_id": get_trace_id(),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             **self.context,
             **fields,
         }

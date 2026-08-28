@@ -27,7 +27,10 @@ def sample_state() -> AgentState:
 class FakeLLM:
     def __call__(self, messages: object) -> SimpleNamespace:
         return SimpleNamespace(
-            content="# Documentation\n\nMocked documentation for SampleService generated without calling an external LLM."
+            content=(
+                "# Documentation\n\n"
+                "Mocked documentation for SampleService generated without calling an external LLM."
+            )
         )
 
 

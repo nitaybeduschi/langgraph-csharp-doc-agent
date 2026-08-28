@@ -1,17 +1,19 @@
 from __future__ import annotations
 
-from .state import AgentState
-from .tools import read_text_file, write_text_file
+from typing import Any, cast
+
 from .config import get_llm
 from .prompts import build_documentation_prompt
 from .schemas import CodeAnalysisResult, DocumentationOutput
 from .security import SecurityError, sanitize_csharp_source
-from typing import Any
+from .state import AgentState
+from .tools import read_text_file, write_text_file
 
 try:
-    from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+    from tenacity import retry as tenacity_retry
+    from tenacity import retry_if_exception_type, stop_after_attempt, wait_exponential
 except Exception:
-    retry = None
+    tenacity_retry = None  # type: ignore[assignment]
 
 
 def _model_dump(model: Any) -> dict[str, Any]:
@@ -138,8 +140,8 @@ def audit_security_metrics(state: AgentState) -> AgentState:
 
 def merge_analyses(state: AgentState) -> AgentState:
     """Merge parallel analysis outputs into the canonical extracted_info key."""
-    structure = CodeAnalysisResult(**state.get("structure_analysis", {}))
-    security = CodeAnalysisResult(**state.get("security_metrics", {}))
+    structure = CodeAnalysisResult(**cast(dict[str, Any], state.get("structure_analysis", {})))
+    security = CodeAnalysisResult(**cast(dict[str, Any], state.get("security_metrics", {})))
 
     merged = CodeAnalysisResult(
         status="ok" if structure.class_name or structure.methods else "partial",
@@ -165,8 +167,8 @@ def _invoke_llm_once(llm: Any, system_msg: str, human_msg: str) -> str:
         return getattr(resp, "content", None) or str(resp)
 
 
-if retry is not None:
-    _invoke_llm_with_retry = retry(
+if tenacity_retry is not None:
+    _invoke_llm_with_retry = tenacity_retry(
         retry=retry_if_exception_type(Exception),
         wait=wait_exponential(multiplier=1, min=1, max=8),
         stop=stop_after_attempt(3),
