@@ -8,6 +8,8 @@ Esta pasta concentra os artefatos de arquitetura, evidencias, prompts e qualidad
 - [Evidencias tecnicas](evidencias/README.md)
 - [Prompts e refinamento](prompts/refinement.md)
 - [QA, testes inteligentes e risco](qa/README.md)
+- [Roteiro do video](video/script.md)
+- [Video demo](https://youtu.be/bS5qZCqTu7k)
 - [Apresentacao](apresentacao.pdf)
 
 ## Organizacao
@@ -18,4 +20,5 @@ docs/
     evidencias/     # comandos, payloads, logs e falhas esperadas
     prompts/        # prompts historicos e refinamento
     qa/             # estrategia de testes, IA em QA e risco
+    video/          # roteiro detalhado para gravacao
 ```
