@@ -22,6 +22,19 @@ app/
     state.py            # AgentState
     tools.py            # tools LangChain
 docs/
+    README.md
+    arquitetura/
+        flow.md
+    evidencias/
+        README.md
+    prompts/
+        01-estrutura-inicial-agent.md
+        02-evolucao-graphs.md
+        03-integracao-llm.md
+        04-add-memory.md
+        refinement.md
+    qa/
+        README.md
 examples/
 output/
 scripts/
@@ -57,7 +70,7 @@ Fluxo principal:
 
 O grafo e compilado com checkpoint SQLite e `interrupt_before=["export_markdown"]`, permitindo revisar a documentacao antes da escrita final. A API webhook resume automaticamente essa pausa para completar a execucao de ponta a ponta.
 
-Veja o diagrama completo em [docs/flow.md](docs/flow.md).
+Veja o diagrama completo em [docs/arquitetura/flow.md](docs/arquitetura/flow.md).
 
 ## Tools/MCP
 
@@ -255,6 +268,14 @@ Os testes usam mocks para evitar chamadas externas ao LLM e ao Discord.
 - Entrada: [examples/sample_service.cs](examples/sample_service.cs)
 - Saida exemplo: [examples/output_sample_service.md](examples/output_sample_service.md)
 - Saida via webhook local: [output/webhook-doc.md](output/webhook-doc.md)
+
+## Evidencias e Prompts
+
+- Indice tecnico da pasta `docs`: [docs/README.md](docs/README.md)
+- Evidencias tecnicas de execucao, logs JSON, payloads webhook e falhas esperadas: [docs/evidencias/README.md](docs/evidencias/README.md)
+- Ciclo de refinamento dos prompts, com tabela problema -> prompt alterado -> resultado: [docs/prompts/refinement.md](docs/prompts/refinement.md)
+- Prompts historicos do desenvolvimento: [docs/prompts/](docs/prompts/)
+- QA, testes inteligentes e risco: [docs/qa/README.md](docs/qa/README.md)
 
 ## Como Contribuir
 
