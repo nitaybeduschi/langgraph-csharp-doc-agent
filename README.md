@@ -272,6 +272,7 @@ Os testes usam mocks para evitar chamadas externas ao LLM e ao Discord.
 ## Evidencias e Prompts
 
 - Indice tecnico da pasta `docs`: [docs/README.md](docs/README.md)
+- Video demo: [https://youtu.be/bS5qZCqTu7k](https://youtu.be/bS5qZCqTu7k)
 - Evidencias tecnicas de execucao, logs JSON, payloads webhook e falhas esperadas: [docs/evidencias/README.md](docs/evidencias/README.md)
 - Ciclo de refinamento dos prompts, com tabela problema -> prompt alterado -> resultado: [docs/prompts/refinement.md](docs/prompts/refinement.md)
 - Prompts historicos do desenvolvimento: [docs/prompts/](docs/prompts/)
