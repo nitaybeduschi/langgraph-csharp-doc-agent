@@ -31,13 +31,21 @@ def main() -> None:
 
     graph = build_graph(include_qa_review=args.qa_review)
     config = {"configurable": {"thread_id": thread_id}}
-    graph_input = None if args.approve_export else initial_state
-    result = graph.invoke(graph_input, config=config)
+
+    state_snapshot = graph.get_state(config)
+    if args.approve_export and state_snapshot.next:
+        result = graph.invoke(None, config=config)
+    else:
+        result = graph.invoke(initial_state, config=config)
+
     if graph.get_state(config).next:
-        print(
-            "Execution paused before export_markdown. "
-            f"Review output, then resume with --thread-id {thread_id} --approve-export."
-        )
+        if args.approve_export:
+            result = graph.invoke(None, config=config)
+        else:
+            print(
+                "Execution paused before export_markdown. "
+                f"Review output, then resume with --thread-id {thread_id} --approve-export."
+            )
     print(result)
 
 
