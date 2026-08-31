@@ -10,16 +10,16 @@ Neste momento, **não implemente toda a lógica do agente**. O objetivo é criar
 
 Utilize:
 
-* Python 3.12+
-* LangGraph
-* LangChain
-* OpenAI
-* Estrutura modular
-* Boas práticas de organização
+- Python 3.12+
+- LangGraph
+- LangChain
+- OpenAI
+- Estrutura modular
+- Boas práticas de organização
 
 ## Estrutura esperada
 
-```
+```text
 app/
     __init__.py
     main.py
@@ -45,12 +45,12 @@ Criar o estado compartilhado do LangGraph utilizando `TypedDict`.
 
 Inicialmente o estado deve possuir campos como:
 
-* input_file
-* source_code
-* extracted_info
-* documentation
-* output_file
-* errors
+- `input_file`
+- `source_code`
+- `extracted_info`
+- `documentation`
+- `output_file`
+- `errors`
 
 ### graph.py
 
@@ -60,14 +60,14 @@ Mesmo que inicialmente exista apenas um fluxo simples, o código deve ficar prep
 
 ### nodes.py
 
-Criar funções (nodes) separadas para cada etapa do fluxo.
+Criar funções de nodes separadas para cada etapa do fluxo.
 
 Inicialmente criar apenas stubs para:
 
-* load_source_file
-* analyze_code
-* generate_documentation
-* export_markdown
+- `load_source_file`
+- `analyze_code`
+- `generate_documentation`
+- `export_markdown`
 
 Cada função deve receber e retornar o estado.
 
@@ -75,8 +75,8 @@ Cada função deve receber e retornar o estado.
 
 Criar ferramentas reutilizáveis para:
 
-* leitura de arquivos
-* gravação de arquivos
+- leitura de arquivos
+- gravação de arquivos
 
 Ainda não é necessário utilizar decorators do LangChain caso não sejam necessários.
 
@@ -90,39 +90,31 @@ Adicionar um prompt inicial para geração de documentação técnica de código
 
 Centralizar:
 
-* leitura da API Key
-* configuração do modelo
-* constantes do projeto
+- leitura da API key
+- configuração do modelo
+- constantes do projeto
 
 ### main.py
 
 Criar um ponto de entrada que:
 
-* receba o caminho de um arquivo `.cs`
-* execute o grafo
-* imprima o resultado
+- receba o caminho de um arquivo `.cs`
+- execute o grafo
+- imprima o resultado
 
 Ainda pode utilizar um exemplo fixo.
 
 ## Fluxo inicial
 
-```
+```text
 Arquivo C#
-
-↓
-
+  ↓
 Load File
-
-↓
-
+  ↓
 Analyze Code
-
-↓
-
+  ↓
 Generate Documentation
-
-↓
-
+  ↓
 Export Markdown
 ```
 
@@ -130,12 +122,12 @@ Export Markdown
 
 Neste primeiro momento:
 
-* implemente apenas a estrutura
-* utilize implementações simples
-* onde necessário, utilize TODOs
-* documente o código
-* adicione type hints
-* deixe a arquitetura preparada para evolução
+- implemente apenas a estrutura
+- utilize implementações simples
+- onde necessário, utilize TODOs
+- documente o código
+- adicione type hints
+- deixe a arquitetura preparada para evolução
 
 O código deve ser limpo, organizado e seguir boas práticas de Python.
 

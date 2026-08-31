@@ -3,9 +3,11 @@ __pycache__/
 *.pyo
 *.pyd
 .pytest_cache/
+.tmp/
 .venv/
 env/
 output/
+checkpoints.db
 .vscode/
 *.log
 # Environment variables

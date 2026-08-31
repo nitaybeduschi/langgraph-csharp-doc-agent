@@ -30,6 +30,36 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
-      - name: Run tests
+      - name: Run quality gates
+        id: quality
+        shell: bash
+        env:
+          LANGCHAIN_TRACING_V2: "false"
+          LANGSMITH_TRACING: "false"
+          LANGCHAIN_CALLBACKS_BACKGROUND: "false"
+          PYTEST_ADDOPTS: "--basetemp=.tmp/pytest"
         run: |
-          python -m pytest -q
+          mkdir -p .ci-logs .tmp
+          set +e
+
+          python -m ruff check app tests scripts 2>&1 | tee .ci-logs/ruff.log
+          ruff_status=${PIPESTATUS[0]}
+
+          python -m mypy app 2>&1 | tee .ci-logs/mypy.log
+          mypy_status=${PIPESTATUS[0]}
+
+          python -m pytest -q 2>&1 | tee .ci-logs/pytest.log
+          pytest_status=${PIPESTATUS[0]}
+
+          if [ "$ruff_status" -ne 0 ] || [ "$mypy_status" -ne 0 ] || [ "$pytest_status" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Analyze failed build logs
+        if: failure()
+        env:
+          LANGCHAIN_TRACING_V2: "false"
+          LANGSMITH_TRACING: "false"
+          LANGCHAIN_CALLBACKS_BACKGROUND: "false"
+        run: |
+          python scripts/ai_log_analyzer.py --log-dir .ci-logs --json-output .ci-logs/analysis.json

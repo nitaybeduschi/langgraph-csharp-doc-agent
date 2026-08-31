@@ -2,16 +2,33 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from langchain_core.tools import tool
 
-def read_text_file(file_path: str | Path) -> str:
+from .schemas import ReadTextFileInput, WriteTextFileInput
+from .security import validate_workspace_path
+
+
+def read_text_file(file_path: str | Path, *, workspace_root: str | Path | None = None) -> str:
     """Read the contents of a text file."""
-    path = Path(file_path)
+    path = validate_workspace_path(file_path, root=workspace_root, must_exist=True)
     return path.read_text(encoding="utf-8")
 
 
-def write_text_file(file_path: str | Path, content: str) -> str:
+def write_text_file(file_path: str | Path, content: str, *, workspace_root: str | Path | None = None) -> str:
     """Write content to a text file."""
-    path = Path(file_path)
+    path = validate_workspace_path(file_path, root=workspace_root)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
     return str(path)
+
+
+@tool("read_text_file", args_schema=ReadTextFileInput)
+def read_text_file_tool(file_path: str) -> str:
+    """Read a UTF-8 text file from disk and return its contents."""
+    return read_text_file(file_path)
+
+
+@tool("write_text_file", args_schema=WriteTextFileInput)
+def write_text_file_tool(file_path: str, content: str) -> str:
+    """Write UTF-8 text content to disk and return the written file path."""
+    return write_text_file(file_path, content)

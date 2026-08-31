@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import uuid
 
+from .config import PROJECT_ROOT
 from .graph import build_graph
+from .logging_config import configure_logging, new_trace_id, set_trace_id
 from .state import AgentState
 
 
@@ -11,16 +14,38 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Generate Markdown docs for a C# source file")
     parser.add_argument("input_file", help="Path to the C# source file")
     parser.add_argument("--output", default="output/documentation.md", help="Path for the generated Markdown file")
+    parser.add_argument("--thread-id", default=None, help="Thread ID used to persist and resume graph state")
+    parser.add_argument("--approve-export", action="store_true", help="Resume a paused run and write Markdown to disk")
+    parser.add_argument("--qa-review", action="store_true", help="Run the optional AI-assisted static QA review node")
     args = parser.parse_args()
 
+    configure_logging()
+    trace_id = set_trace_id(new_trace_id())
+    thread_id = args.thread_id or f"doc-agent-{uuid.uuid4()}"
     initial_state: AgentState = {
         "input_file": args.input_file,
         "output_file": args.output,
+        "trace_id": trace_id,
+        "workspace_root": str(PROJECT_ROOT),
     }
 
-    graph = build_graph()
-    config = {"configurable": {"thread_id": "demo-session"}}
-    result = graph.invoke(initial_state, config=config)
+    graph = build_graph(include_qa_review=args.qa_review)
+    config = {"configurable": {"thread_id": thread_id}}
+
+    state_snapshot = graph.get_state(config)
+    if args.approve_export and state_snapshot.next:
+        result = graph.invoke(None, config=config)
+    else:
+        result = graph.invoke(initial_state, config=config)
+
+    if graph.get_state(config).next:
+        if args.approve_export:
+            result = graph.invoke(None, config=config)
+        else:
+            print(
+                "Execution paused before export_markdown. "
+                f"Review output, then resume with --thread-id {thread_id} --approve-export."
+            )
     print(result)
 
 

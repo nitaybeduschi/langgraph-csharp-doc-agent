@@ -10,6 +10,9 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
+os.environ.setdefault("LANGSMITH_TRACING", "true")
+
 
 def _extract_prompt_text(prompt_input: Any) -> str:
     if isinstance(prompt_input, str):
@@ -20,7 +23,7 @@ def _extract_prompt_text(prompt_input: Any) -> str:
         parts: list[str] = []
         for item in prompt_input:
             if hasattr(item, "content"):
-                parts.append(str(getattr(item, "content")))
+                parts.append(str(item.content))
             elif isinstance(item, dict) and "content" in item:
                 parts.append(str(item["content"]))
             else:
@@ -145,7 +148,7 @@ def get_llm() -> Any:
 
     # Import inside function to avoid hard dependency at module import time
     try:
-        from langchain.chat_models import ChatOpenAI
+        from langchain.chat_models import ChatOpenAI  # type: ignore[attr-defined]
     except Exception:
         ChatOpenAI = None
 
